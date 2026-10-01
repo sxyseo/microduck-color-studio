@@ -11,6 +11,9 @@ export interface ColorStudioAPI {
   setSurface(surface: Surface): Palette;
   selectPart(id: string): void;
   setView(name: string): void;
+  showParts(ids: string[] | null): void;
+  setExplode(value: number): void;
+  setPose(matrices: Record<string, number[]> | null): void;
   undo(): void;
   redo(): void;
   getInventory(): Inventory;

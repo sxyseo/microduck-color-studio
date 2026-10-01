@@ -40,9 +40,32 @@ button:disabled {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+select:focus-visible,
 summary:focus-visible {
   outline: 3px solid #53bba0;
   outline-offset: 3px;
+}
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light;
+  min-width: 0;
+  min-height: 44px;
+  line-height: 1.5;
+  padding: 9px 36px 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #273632;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%2368716b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center / 16px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+select:not(:disabled):hover { border-color: #a9b79e; }
+select:disabled { color: #7b837b; background-color: #f2f4ef; cursor: not-allowed; }
+select option, select optgroup { color: #273632; background: #fff; }
+select option:disabled { color: #7b837b; }
+@media (forced-colors: active) {
+  select:not([multiple]):not([size]) { -webkit-appearance: auto; appearance: auto; background-image: none; }
 }
 button {
   border: 0;
@@ -1462,3 +1485,42 @@ pre {
     font-size: 14px;
   }
 }
+
+/* Embedded in the local replication workbench; persistence belongs to the host. */
+.studio-embedded .topbar {
+  height: 60px;
+  padding: 0 18px;
+}
+.guide-embedded .parts-panel,.guide-embedded .inspector,.guide-embedded .topbar,.guide-embedded .palette-tray,.guide-embedded .stage-top,.guide-embedded .stage-caption,.guide-embedded .footer,.guide-embedded .stage-tools { display: none; }
+.guide-embedded .workspace { display: block; }
+.guide-embedded .stage { height: 100vh; min-height: 400px; }
+.studio-embedded .brand {
+  font-size: 16px;
+}
+.studio-embedded .brand-mark,
+.studio-embedded .header-divider,
+.studio-embedded .project-label {
+  display: none;
+}
+.studio-embedded .workspace {
+  grid-template-rows: 560px auto;
+}
+.studio-embedded .footer {
+  padding: 14px 20px;
+}
+@media (min-width: 851px) {
+  .studio-embedded .workspace {
+    grid-template-columns: 195px minmax(0, 1fr) 245px;
+  }
+}
+@media (max-width: 850px) {
+  .studio-embedded .workspace {
+    grid-template-rows: auto;
+  }
+  .studio-embedded .stage {
+    min-height: 490px;
+  }
+}
+/* The tutorial iframe owns its viewport height at every breakpoint. */
+.guide-embedded .stage { height:100vh; min-height:0; }
+.guide-embedded #viewport { min-height:0; height:100%; }

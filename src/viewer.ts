@@ -35,6 +35,9 @@ export class Viewer {
   private size = 300;
   private center = new THREE.Vector3();
   private layerTexture: THREE.CanvasTexture;
+  private ground: THREE.Mesh;
+  private posing = false;
+  private simulationGrid = new THREE.GridHelper(3000, 60, '#bdc9b4', '#d9dfd3');
   constructor(
     private host: HTMLElement,
     private model: Manifest,
@@ -107,10 +110,14 @@ export class Viewer {
       new THREE.PlaneGeometry(4000, 4000),
       new THREE.ShadowMaterial({ opacity: 0.15 }),
     );
+    this.ground = ground;
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = model.bounds[0][1] - 0.3;
     ground.receiveShadow = true;
     this.scene.add(ground);
+    this.simulationGrid.position.y = .2;
+    this.simulationGrid.visible = false;
+    this.scene.add(this.simulationGrid);
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     this.resize();
@@ -216,6 +223,42 @@ export class Viewer {
     for (const [key, m] of this.meshes) m.visible = !id || key === id;
     this.select(this.selected);
   }
+  showParts(ids: string[] | null) {
+    if (ids !== null && (!Array.isArray(ids) || ids.some(id => !this.meshes.has(id))))
+      throw new Error('未知的零件编号');
+    const visible = ids === null ? null : new Set(ids);
+    for (const [id, mesh] of this.meshes) mesh.visible = visible === null || visible.has(id);
+    this.select(this.selected);
+  }
+  setPose(matrices: Record<string, number[]> | null) {
+    if (matrices !== null) {
+      if (!matrices || typeof matrices !== 'object' || Array.isArray(matrices) ||
+          Object.keys(matrices).length !== this.meshes.size ||
+          Object.entries(matrices).some(([id, v]) => !this.meshes.has(id) || !Array.isArray(v) || v.length !== 16 ||
+            v.some(n => typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 1e7) ||
+            v[3] !== 0 || v[7] !== 0 || v[11] !== 0 || v[15] !== 1)) throw new Error('姿态需要全部零件的有效仿射矩阵');
+    }
+    for (const [id, mesh] of this.meshes) {
+      if (matrices) new THREE.Matrix4().fromArray(matrices[id]).decompose(mesh.position,mesh.quaternion,mesh.scale);
+      else { mesh.position.copy(this.origins.get(id)!); mesh.quaternion.identity(); mesh.scale.set(1,1,1); }
+      mesh.updateMatrixWorld();
+    }
+    this.ground.position.y = matrices ? 0 : this.model.bounds[0][1] - .3;
+    this.simulationGrid.visible = !!matrices;
+    if (!!matrices !== this.posing) {
+      const bounds = new THREE.Box3().setFromObject(this.group);
+      bounds.getCenter(this.center); this.size = bounds.getSize(new THREE.Vector3()).length();
+      this.view('three-quarter');
+    } else if (matrices) {
+      const next = new THREE.Box3().setFromObject(this.group).getCenter(new THREE.Vector3());
+      const delta = next.clone().sub(this.center);
+      this.camera.position.add(delta);
+      this.controls.target.add(delta);
+      this.center.copy(next);
+    }
+    this.posing = !!matrices;
+    this.select(null);
+  }
   hardware(visible: boolean) {
     for (const p of this.model.parts) if (!p.printable) this.meshes.get(p.id)!.visible = visible;
     this.select(this.selected);
@@ -282,6 +325,8 @@ export class Viewer {
   }
   private resize() {
     const { width, height } = this.host.getBoundingClientRect();
+    // Hidden workspace tabs have no viewport; keep the last valid camera framing.
+    if (width <= 0 || height <= 0) return;
     const before = Math.min(1, this.camera.aspect);
     this.camera.aspect = width / Math.max(1, height);
     const ratio = before / Math.min(1, this.camera.aspect);
@@ -299,6 +344,11 @@ export class Viewer {
         o.geometry.dispose();
         const mats = Array.isArray(o.material) ? o.material : [o.material];
         mats.forEach((m) => m.dispose());
+      }
+      if (o === this.simulationGrid) {
+        this.simulationGrid.geometry.dispose();
+        const materials = Array.isArray(this.simulationGrid.material) ? this.simulationGrid.material : [this.simulationGrid.material];
+        materials.forEach(material => material.dispose());
       }
     });
     this.environment.dispose();

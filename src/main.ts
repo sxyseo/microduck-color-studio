@@ -39,6 +39,9 @@ import {
 } from './domain';
 import { Viewer } from './viewer';
 const isDemo = new URLSearchParams(location.search).get('demo') === '1';
+const embedded = new URLSearchParams(location.search).get('embed') === 'studio';
+if (embedded) document.body.classList.add('studio-embedded');
+if (embedded && new URLSearchParams(location.search).get('workspace') === 'guide') document.body.classList.add('guide-embedded');
 const icons = {
   Search,
   RotateCcw,
@@ -108,7 +111,7 @@ function toast(s: string) {
   toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3500);
 }
 function save() {
-  if (isDemo) return;
+  if (isDemo || embedded) return;
   try {
     localStorage.setItem(`color-studio:${model.modelId}`, JSON.stringify(state.palette));
     $('#save-status').textContent = '已保存到此浏览器';
@@ -452,7 +455,8 @@ async function init() {
     model = await response.json();
     state = new EditorState(model);
     try {
-      const stored = isDemo ? null : localStorage.getItem(`color-studio:${model.modelId}`);
+      const stored =
+        isDemo || embedded ? null : localStorage.getItem(`color-studio:${model.modelId}`);
       if (stored) {
         state.palette = validatePalette(JSON.parse(stored), model);
         for (const p of model.parts) {
@@ -496,8 +500,16 @@ async function init() {
         update();
       },
       toast,
-      !isDemo,
+      !isDemo && !embedded,
     );
+    if (embedded) {
+      $('#save-status').textContent = '会话草稿 · 请在工作台保存';
+      document.querySelector('.brand')?.removeAttribute('href');
+      const note = document.querySelector('#inventory-dialog .inventory-actions + input + p');
+      if (note)
+        note.textContent =
+          '记录你实际拥有的耗材。修改后点击工作台的“保存到项目”，与当前项目的配色一起保存。';
+    }
     $('#inventory-open').onclick = stock.open;
     $('#recommend-open').onclick = stock.open;
     const api: ColorStudioAPI = {
@@ -530,6 +542,14 @@ async function init() {
       },
       selectPart: (id: string) => select(id),
       setView: (name: string) => viewer.view(name),
+      showParts: (ids: string[] | null) => viewer.showParts(ids),
+      setPose: (matrices: Record<string, number[]> | null) => viewer.setPose(matrices),
+      setExplode: (value: number) => {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) throw new Error('展开比例应为 0–1');
+        viewer.explode(value);
+        $<HTMLInputElement>('#explode').value = String(value * 100);
+        $('#explode-value').textContent = `${Math.round(value * 100)}%`;
+      },
       undo: () => {
         state.undo();
         update();
@@ -555,6 +575,10 @@ async function init() {
       );
     }
   } catch (error) {
+    document.body.dataset.renderError = (error as Error).message;
+    window.dispatchEvent(
+      new CustomEvent('colorstudio:error', { detail: (error as Error).message }),
+    );
     $('#loading').innerHTML =
       `<strong>模型加载失败</strong><span>${escape((error as Error).message)}</span><button onclick="location.reload()" class="button">重新加载</button>`;
     console.error(error);
